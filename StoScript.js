@@ -5,25 +5,7 @@ const PLATFORM = "S.to";
 const BASE_URL = "https://s.to";
 const CONTENT_TYPE = "serie"; // "serie" for s.to, "anime" for aniworld.to
 
-var config = {};
-
-// Enums
-var Hoster = {
-  Unknown: "Unknown",
-  VOE: "VOE",
-  Doodstream: "Doodstream",
-  Vidoza: "Vidoza",
-  Streamtape: "Streamtape",
-  Vidmoly: "Vidmoly",
-};
-
-var Language = {
-  Unknown: "Unknown",
-  German: "German",
-  GermanSub: "GermanSub",
-  English: "English",
-  EnglishSub: "EnglishSub",
-};
+let config = {};
 
 //================ SOURCE API IMPLEMENTATION ================//
 
@@ -265,7 +247,7 @@ function toRelativePath(text) {
 
 function toMediaLanguage(text) {
   if (!text || text.length < 15) {
-    return { audio: Language.Unknown, subtitle: null };
+    return { audio: "Unknown", subtitle: null };
   }
 
   const languageData = text
@@ -285,24 +267,24 @@ function toMediaLanguage(text) {
     };
   }
 
-  return { audio: Language.Unknown, subtitle: null };
+  return { audio: "Unknown", subtitle: null };
 }
 
 function toHoster(text) {
   text = text.toLowerCase();
   switch (text) {
     case "voe":
-      return Hoster.VOE;
+      return "VOE";
     case "doodstream":
-      return Hoster.Doodstream;
+      return "Doodstream";
     case "vidoza":
-      return Hoster.Vidoza;
+      return "Vidoza";
     case "streamtape":
-      return Hoster.Streamtape;
+      return "Streamtape";
     case "vidmoly":
-      return Hoster.Vidmoly;
+      return "Vidmoly";
     default:
-      return Hoster.Unknown;
+      return "Unknown";
   }
 }
 
@@ -311,16 +293,16 @@ function toLanguage(text) {
   switch (text) {
     case "german":
     case "deutsch":
-      return Language.German;
+      return "German";
     case "germansub":
-      return Language.GermanSub;
+      return "GermanSub";
     case "english":
     case "englisch":
-      return Language.English;
+      return "English";
     case "englishsub":
-      return Language.EnglishSub;
+      return "EnglishSub";
     default:
-      return Language.Unknown;
+      return "Unknown";
   }
 }
 
@@ -539,7 +521,7 @@ function getEpisodeInfo(titlePath, season, episodeNum) {
             : "",
           hoster: hosterElement ? hosterElement.textContent.trim() : "Unknown",
           language: languageMapping[langKey] || {
-            audio: Language.Unknown,
+            audio: "Unknown",
             subtitle: null,
           },
         });
