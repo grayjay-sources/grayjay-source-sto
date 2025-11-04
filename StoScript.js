@@ -13,6 +13,10 @@ source.enable = function (conf, settings, savedState) {
   config = conf ?? {};
 };
 
+source.saveState = function () {
+  return "";
+};
+
 source.getHome = function () {
   try {
     const dom = fetchHTML("/");
@@ -21,32 +25,51 @@ source.getHome = function () {
     const coverLinks = dom.querySelectorAll("a[href*='/stream/']");
     for (let i = 0; i < Math.min(coverLinks.length, 20); i++) {
       const link = coverLinks[i];
-      const href = link.getAttribute("href");
+      let href = link.getAttribute("href");
       const img = link.querySelector("img");
 
       if (href && href.includes("/stream/")) {
-        const title = extractTitleFromPath(href);
+        // Normalize URL: ensure we have a relative path first
+        let relativePath = href;
+        if (href.startsWith("http")) {
+          // Strip any domain to get relative path
+          relativePath = href.replace(/^https?:\/\/[^\/]+/, "");
+        }
+        
+        // Build full URL from clean relative path
+        const fullUrl = BASE_URL + relativePath;
+        
+        // Extract clean title from the path
+        const pathMatch = relativePath.match(/\/stream\/([^\/]+)/);
+        const titleSlug = pathMatch ? pathMatch[1] : "";
+        const title = extractTitleFromPath(titleSlug);
+        
         const thumbnail = img
           ? img.getAttribute("data-src") || img.getAttribute("src")
           : "";
+        
+        // Normalize thumbnail URL
+        const fullThumbnail = thumbnail && !thumbnail.startsWith("http") 
+          ? BASE_URL + thumbnail 
+          : thumbnail;
 
         results.push(
           new PlatformVideo({
-            id: new PlatformID(PLATFORM, href, config.id),
+            id: new PlatformID(PLATFORM, relativePath, config.id),
             name: title,
             thumbnails: new Thumbnails(
-              thumbnail ? [new Thumbnail(thumbnail, 0)] : []
+              fullThumbnail ? [new Thumbnail(fullThumbnail, 0)] : []
             ),
             author: new PlatformAuthorLink(
-              new PlatformID(PLATFORM, href, config.id),
+              new PlatformID(PLATFORM, relativePath, config.id),
               title,
-              BASE_URL + href,
-              thumbnail
+              fullUrl,
+              fullThumbnail
             ),
             uploadDate: parseInt(new Date().getTime() / 1000),
             duration: 0,
             viewCount: 0,
-            url: BASE_URL + href,
+            url: fullUrl,
             isLive: false,
           })
         );
@@ -61,6 +84,30 @@ source.getHome = function () {
 };
 
 source.searchSuggestions = function (query) {
+  if (!query || query.length < 2) return [];
+  
+  try {
+    // Try to get autocomplete suggestions from the search endpoint
+    const resp = http.GET(
+      `${BASE_URL}/ajax/search/suggest?keyword=${encodeURIComponent(query)}`,
+      {},
+      false
+    );
+    
+    if (resp.isOk) {
+      try {
+        const data = JSON.parse(resp.body);
+        if (data && Array.isArray(data)) {
+          return data.map(item => item.title || item.name || item).slice(0, 10);
+        }
+      } catch (e) {
+        // If JSON parsing fails, return empty
+      }
+    }
+  } catch (e) {
+    log("Search suggestions error: " + e);
+  }
+  
   return [];
 };
 
@@ -119,10 +166,18 @@ source.getChannel = function (url) {
   });
 };
 
-source.getChannelContents = function (url) {
+source.getChannelContents = function (url, type, order, filters) {
   const titlePath = extractTitleFromUrl(url);
   const episodes = getAllEpisodes(titlePath);
   return new ContentPager(episodes, false);
+};
+
+source.getChannelCapabilities = function () {
+  return {
+    types: [Type.Feed.Videos],
+    sorts: [Type.Order.Chronological],
+    filters: [],
+  };
 };
 
 source.isContentDetailsUrl = function (url) {
@@ -186,8 +241,21 @@ function fetchHTML(path) {
     throw new ScriptException(`HTTP request failed: ${resp.code}`);
   }
 
-  const dom = domParser.parseFromString(resp.body);
+  // Parse HTML using GrayJay's global domParser
+  const dom = domParser.parseFromString(resp.body, "text/html");
   return dom;
+}
+
+function normalizeUrl(url) {
+  // Convert any URL format to a full absolute URL
+  if (!url) return "";
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    return url;
+  }
+  if (url.startsWith("/")) {
+    return BASE_URL + url;
+  }
+  return BASE_URL + "/" + url;
 }
 
 function extractTitleFromUrl(url) {
@@ -311,36 +379,49 @@ function searchContent(query) {
     const dom = fetchHTML("/search?q=" + encodeURIComponent(query));
     const results = [];
 
-    const links = dom.querySelectorAll("li > a");
+    const links = dom.querySelectorAll("li > a, .searchResults a");
     for (let i = 0; i < links.length; i++) {
       const a = links[i];
-      const url = a.getAttribute("href");
+      let href = a.getAttribute("href");
       const em = a.querySelector("em");
-      const title = em ? em.textContent : "";
+      const title = em ? em.textContent.trim() : a.textContent.trim();
 
-      if (url && title) {
+      if (href && title && href.includes("/stream/")) {
+        // Normalize URL: ensure we have a relative path first
+        let relativePath = href;
+        if (href.startsWith("http")) {
+          relativePath = href.replace(/^https?:\/\/[^\/]+/, "");
+        }
+        
+        const fullUrl = BASE_URL + relativePath;
+        
+        // Get thumbnail
+        let thumbnail = "";
         const img = a.querySelector("img");
-        const thumbnail = img
-          ? img.getAttribute("data-src") || img.getAttribute("src")
-          : "";
+        if (img) {
+          const src = img.getAttribute("data-src") || img.getAttribute("src");
+          if (src) {
+            thumbnail = src.startsWith("http") ? src : BASE_URL + src;
+          }
+        }
 
         results.push(
           new PlatformVideo({
-            id: new PlatformID(PLATFORM, url, config.id),
+            id: new PlatformID(PLATFORM, relativePath, config.id),
             name: title,
             thumbnails: new Thumbnails(
               thumbnail ? [new Thumbnail(thumbnail, 0)] : []
             ),
             author: new PlatformAuthorLink(
-              new PlatformID(PLATFORM, url, config.id),
+              new PlatformID(PLATFORM, relativePath, config.id),
               title,
-              BASE_URL + url,
+              fullUrl,
               thumbnail
             ),
             uploadDate: 0,
             duration: 0,
             viewCount: 0,
-            url: BASE_URL + url,
+            url: fullUrl,
             isLive: false,
           })
         );
@@ -438,7 +519,10 @@ function getEpisodesFromSeason(titlePath, season) {
       );
 
       if (numElement) {
-        const episodeNum = parseInt(numElement.textContent.trim());
+        // Extract episode number from text like "1", "Episode 1", "1.", etc.
+        const numText = numElement.textContent.trim();
+        const numMatch = numText.match(/\d+/);
+        const episodeNum = numMatch ? parseInt(numMatch[0]) : i + 1;
         const episodeTitle = titleElement
           ? titleElement.textContent.trim()
           : "";
