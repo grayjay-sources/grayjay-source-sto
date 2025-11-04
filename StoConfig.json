@@ -1,0 +1,39 @@
+{
+	"name": "S.to",
+	"description": "S.to integration for Grayjay - German TV Series Streaming",
+	"author": "Zerophire, Bluscream, Cursor.AI",
+	"authorUrl": "https://github.com/Bluscream",
+	"platformUrl": "https://s.to",
+	"sourceUrl": "https://github.com/Bluscream/grayjay-source-sto/blob/main/StoConfig.json",
+	"repositoryUrl": "https://github.com/Bluscream/grayjay-source-sto",
+	"scriptUrl": "./StoScript.js",
+	"version": 1,
+	"iconUrl": "./StoIcon.png",
+	"id": "sto-german-series-streaming",
+	"scriptSignature": "",
+	"scriptPublicKey": "",
+	"packages": [
+		"Http"
+	],
+	"allowEval": false,
+	"allowUrls": [
+		"s.to"
+	],
+	"supportedClaimTypes": [
+		3
+	],
+	"authentication": {
+		"loginUrl": "https://s.to/login",
+		"userAgent": "Mozilla/5.0 (Linux; Android 12) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.230 Mobile Safari/537.36",
+		"domainHeadersToFind": {
+			"s.to": []
+		}
+	},
+	"settings": [],
+	"changelog": {
+		"1": [
+			"Initial version: Basic search, series listing, episode browsing"
+		]
+	}
+}
+
